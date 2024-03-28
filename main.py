@@ -6,7 +6,7 @@ badger = badger2040.Badger2040()
 # Constants
 WIDTH, HEIGHT = badger.get_bounds() # (296, 128)
 
-# Counters
+# Counters in global scope
 counterA = 0
 counterB = 0
 
@@ -32,53 +32,96 @@ def setup_reset_label():
 def update_screen():
     badger.update()
 
+# Uses the screen width information to right align text
 def display_right_align(text, y, scale):
     text_width = badger.measure_text(text, scale)
+    badger.text(text, WIDTH - text_width, y, scale=scale)   
+
+def display_right_align_partial_update(counter, text, y, scale):
+    init_screen_update()
+    text_width = badger.measure_text(text, scale)
     badger.text(text, WIDTH - text_width, y, scale=scale)
-
-# Handles updating the counterA data in variable and the write data in display buffer
-def update_counterA_to(value):
-    counterA = value
-    display_right_align(str(value), 35, 1)
+    ya = 16 if counter == "A" else 80
+    badger.partial_update(WIDTH - text_width, ya, text_width, 32)   
     
-def update_counterB_to(value):
-    counterB = value
-    display_right_align(str(value), 95, 1)
-
+def partial_update_label_B(value):
+    display_right_align_partial_update("B", str(value), 95, 1) # counterB label
+    
+def partial_update_label_A(value):
+    display_right_align_partial_update("A", str(value), 35, 1) # counterA label
+    
+# Resets counter value and updates the labels
 def reset_counter(counter):
-    init_screen_update()
-    
     if counter == "A":
-        update_counterA_to(0)
-        update_counterB_to(counterB)
+        update_counter("counterA", 0)
     elif counter == "B":
-        update_counterA_to(counterA)
-        update_counterB_to(0)
-    else:
-        update_counterA_to(0)
-        update_counterB_to(0)
+        update_counter("counterB", 0)
     
-    update_screen()  
+    update_labels(counterA, counterB) 
     
-def counter_labels_to(valueA, valueB):
+# updates counterA and counterB labels and updates the whole screen.  
+def update_labels(valueA, valueB):
     init_screen_update()
-    update_counterA_to(valueA)
-    update_counterB_to(valueB)
+    display_right_align(str(valueA), 35, 1) # counterA label
+    display_right_align(str(valueB), 95, 1) # counterB label
     update_screen()
     
+# Updates the global counter values and persists the values to files
+def update_counter(counter, value):
+    global counterA
+    global counterB
+    
+    if counter == "counterA":
+        counterA = value
+    elif counter == "counterB":
+        counterB = value
+        
+    if counter == "counterA" or counter == "counterB":    
+        filename = counter + ".txt"
+        file = open(filename, "w")
+        file.write(str(value))
+        file.close()
+
+# Gets saved counter value from a file
+def get_saved_value(counter):
+    filename = counter + ".txt"
+    value = 0 # default value
+    
+    try:
+        file = open(filename, "r")
+        read_value = file.read()
+        file.close()
+        value = int(read_value)
+    except:
+        value = 0 # Just keep the default value
+        print("except")
+
+    return value
+
+# Get's saved counter values and calls update on them
+def restore_counters():
+    valueA = get_saved_value("counterA")
+    valueB = get_saved_value("counterB")
+        
+    update_counter("counterA", valueA)
+    update_counter("counterB", valueB)
+
+# Handles all that's needed in the initialization of thr board
 def initialize_badger():
-    # LED ON when we are running
     badger.led(111)
-    reset_counter("AB")
+    badger.set_update_speed(0) # normal = best quality and slowest for the first draw
+    restore_counters()
+    global counterA
+    global counterB
+    update_labels(counterA, counterB)
+    badger.set_update_speed(2) # fast = lower quality but quicker. Affects also partial_update() speed
 
-
-###
+#######
 # Start
-###
+#######
 
 initialize_badger()
 
-# Read buttons
 while True:
     if badger.pressed(badger2040.BUTTON_A):
         reset_counter("A")
@@ -87,8 +130,10 @@ while True:
     if badger.pressed(badger2040.BUTTON_C):
         print("Button C")   
     if badger.pressed(badger2040.BUTTON_UP):
-        counterA += 1
-        counter_labels_to(counterA, counterB)
+        newValue = counterA + 1
+        update_counter("counterA", newValue)
+        partial_update_label_A(newValue)
     if badger.pressed(badger2040.BUTTON_DOWN):
-        counterB += 1
-        counter_labels_to(counterA, counterB)
+        newValue = counterB + 1
+        update_counter("counterB", newValue)
+        partial_update_label_B(newValue)
