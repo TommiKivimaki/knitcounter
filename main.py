@@ -1,5 +1,3 @@
-# import launcher  # noqa F401
-
 import badger2040
 badger = badger2040.Badger2040()
 
